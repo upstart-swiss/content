@@ -73,33 +73,30 @@ def test_get_and_validate_positive_int_argument_invalid_arguments():
         get_and_validate_positive_int_argument({'limit': -3}, 'limit')
 
 
-@pytest.mark.parametrize('arg, parse_format, expected',
-                         [('2020-11-22T16:31:14-02:00', False, datetime(2020, 11, 22, 18, 31, 14, tzinfo=pytz.utc)),
-                          (None, False, None),
-                          (None, True, None), ('2020-12-12', True, '2020-12-12'),
-                          ('2020-12-12T10:11:22', True, '2020-12-12'), ('2020-12-12T22:11:22-03:00', True, '2020-12-13')
-                          ])
-def test_get_optional_time_parameter_valid_time_argument(arg, parse_format, expected):
+@pytest.mark.parametrize('arg, expected',
+                         [('2020-11-22T16:31:14-02:00', datetime(2020, 11, 22, 18, 31, 14, tzinfo=pytz.utc)),
+                          (None, None),
+                          ('2020-11-22T22:31:14-02:00', datetime(2020, 11, 23, 0, 31, 14, tzinfo=pytz.utc)),
+                          ('2020-11-22T01:31:14+02:00', datetime(2020, 11, 21, 23, 31, 14, tzinfo=pytz.utc))])
+def test_get_optional_time_parameter_valid_time_argument(arg, expected):
     """
     Given:
      - Demisto arguments.
      - Argument of type time to extract from Demisto arguments as epoch time.
 
     When:
-     - Case a: Argument exists, has expected date format, parse format was not asked,.
-     - Case b: Argument does not exist, parse format was not asked.
-     - Case c: Argument does not exist, parse format was asked.
-     - Case d: Argument exist and has ISO format, parse format was asked.
-     - Case e: Argument exist and has ISO format, parse format was asked.
+     - Case a: Argument exists, has expected date format.
+     - Case b: Argument does not exist.
+     - Case c: Argument exists, timezone is not UTC.
+     - Case d: Argument exists, timezone is not UTC.
 
     Then:
      - Case a: Ensure that the corresponding epoch time is returned.
      - Case b: Ensure that None is returned.
-     - Case c: Ensure that None is returned.
-     - Case d: Ensure that correct FraudWatch format is returned.
-     - Case e: Ensure that correct FraudWatch format is returned.
+     - Case c: Ensure that date time object returned is updated with time zone diff.
+     - Case d: Ensure that date time object returned is updated with time zone diff.
     """
-    assert (get_time_parameter(arg, parse_format)) == expected
+    assert (get_time_parameter(arg)) == expected
 
 
 @pytest.mark.parametrize('command_function, args, url_suffix, response, expected',

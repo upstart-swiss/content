@@ -1,4 +1,4 @@
-Retrieve FraudWatch API token
+### Retrieve FraudWatch API token
 
 1. Navigate to the [Phishportal site](https://www.phishportal.com/).
 2. Enter your Username and Password.

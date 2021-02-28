@@ -3,12 +3,15 @@ import urllib3
 
 import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401
+from requests import Response
 
 # disable insecure warnings
 urllib3.disable_warnings()
 
 ''' CONSTANTS '''
 MINIMUM_POSITIVE_VALUE = 1
+MAX_LIMIT_VALUE = 200
+DEFAULT_LIMIT_VALUE = 50
 BASE_URL = 'https://www.phishportal.com/v1/'
 
 FRAUD_WATCH_DATE_FORMAT = '%Y-%m-%d'
@@ -178,7 +181,7 @@ class Client(BaseClient):
 ''' HELPER FUNCTIONS '''
 
 
-def fraud_watch_error_handler(res: Any):
+def fraud_watch_error_handler(res: Response):
     """
     FraudWatch error handler for any error occurred during the API request.
     This function job is to translate the known exceptions returned by FraudWatch
@@ -199,7 +202,7 @@ def fraud_watch_error_handler(res: Any):
         if res.status_code == 403:
             err_msg += '\nMake sure your API token is valid and up-to-date'
         elif not message and not errors:
-            err_msg += '\n{}'.format(json.dumps(error_entry))
+            err_msg += f'\n{json.dumps(error_entry)}'
         else:
             if message and errors:
                 fraud_watch_error_reason = f'{message}: {errors}'
@@ -208,32 +211,8 @@ def fraud_watch_error_handler(res: Any):
             err_msg += f'\n{fraud_watch_error_reason}'
         raise DemistoException(err_msg, res=res)
     except ValueError:
-        err_msg += '\n{}'.format(res.text)
+        err_msg += f'\n{res.text}'
         raise DemistoException(err_msg, res=res)
-
-
-def get_optional_time_parameter_as_fraud_watch_date_format(arg: Optional[str]) -> Optional[str]:
-    """
-    Receives arg, expects that the time argument will be either:
-    - Iso time.
-    - Time Range.
-    Args:
-        arg (str): The argument to turn into FraudWatch date format.
-
-    Returns:
-        - (None): If 'arg' is None, returns None.
-        - (str): If 'arg' exists and is epoch time or iso time, returns string representing the date format expected
-          by FraudWatch service.
-        - (Exception): If 'arg' exists and is not time range or iso, throws DemistoException exception.
-
-    """
-    maybe_unaware_date = arg_to_datetime(arg, is_utc=True)
-    if not maybe_unaware_date:
-        return None
-
-    aware_time_date = maybe_unaware_date if maybe_unaware_date.tzinfo else UTC_TIMEZONE.localize(
-        maybe_unaware_date)
-    return aware_time_date.strftime('%Y-%m-%d')
 
 
 def get_and_validate_positive_int_argument(args: Dict, argument_name: str) -> Optional[int]:
@@ -259,19 +238,17 @@ def get_and_validate_positive_int_argument(args: Dict, argument_name: str) -> Op
     return argument_value
 
 
-def get_time_parameter(arg: Optional[str], parse_format: bool = False):
+def get_time_parameter(arg: Optional[str]):
     """
     parses arg into date time object with aware time zone if 'arg' exists.
     If no time zone is given, sets timezone to UTC.
-    Returns the date time object created or the expected format by FraudWatch.
+    Returns the date time object created.
     Args:
         arg (str): The argument to turn into aware date time.
-        parse_format (bool): Should return date or the parsed format of the date.
 
     Returns:
         - (None) If 'arg' is None, returns None.
-        - (datetime): If 'arg' is exists and parse_format is false, returns date time.
-        - (str): If 'arg' is exists and parse_format is true, returns the FraudWatch date format of the date time object.
+        - (datetime): If 'arg' is exists, returns date time.
     """
     maybe_unaware_date = arg_to_datetime(arg, is_utc=True)
     if not maybe_unaware_date:
@@ -280,8 +257,6 @@ def get_time_parameter(arg: Optional[str], parse_format: bool = False):
     aware_time_date = maybe_unaware_date if maybe_unaware_date.tzinfo else UTC_TIMEZONE.localize(
         maybe_unaware_date)
 
-    if parse_format:
-        return aware_time_date.strftime('%Y-%m-%d')
     return aware_time_date
 
 
@@ -313,26 +288,25 @@ def fetch_incidents_command(client: Client, params: Dict, last_run: Dict):
     """
     brand = params.get('brand')
     status = params.get('status')
-    limit = int(params.get('max_fetch', 50))
+    limit = arg_to_number(params.get('max_fetch', DEFAULT_LIMIT_VALUE))
 
-    date_now = datetime.now(timezone.utc)
-    yesterday = date_now - timedelta(1)
-    fetch_time_string = params.get('first_fetch', '1 days').strip()
-    minimum_date_opened_str = last_run.get('last_fetch_time', fetch_time_string)
-    minimum_date_opened = get_time_parameter(minimum_date_opened_str)
-    if minimum_date_opened < yesterday:
-        minimum_date_opened = yesterday
+    yesterday = get_time_parameter('1 day')
+    first_fetch_time_string = params.get('first_fetch', '1 days').strip()
+    minimum_date_opened_str = last_run.get('last_fetch_time', first_fetch_time_string)
+    # Between yesterday date and last fetch date we choose the latest
+    minimum_date_opened = max(get_time_parameter(minimum_date_opened_str), yesterday)
+
     from_date = minimum_date_opened.strftime(FRAUD_WATCH_DATE_FORMAT)
-    to_date = date_now.strftime(FRAUD_WATCH_DATE_FORMAT)
     incidents = []
 
     # Need to fetch all incidents because FraudWatch does not sort incidents based on dates.
     current_page = 1
     while True:
-        raw_response = client.incidents_list(brand=brand, status=status, page=current_page, limit=200,
-                                             from_date=from_date, to_date=to_date)
+        raw_response = client.incidents_list(brand=brand, status=status, page=current_page, limit=MAX_LIMIT_VALUE,
+                                             from_date=from_date, to_date=None)
         if raw_response.get('error'):
-            raise DemistoException(f'''Error occurred during the call to FraudWatch: {raw_response.get('error')}''')
+            raise DemistoException(
+                f'''Error occurred while pulling incidents from FraudWatch: {raw_response.get('error')}''')
         temp_incidents = raw_response.get('incidents', [])
         if not temp_incidents:
             break
@@ -342,8 +316,7 @@ def fetch_incidents_command(client: Client, params: Dict, last_run: Dict):
     incidents = [incident for incident in incidents
                  if get_time_parameter(incident.get('date_opened')) > minimum_date_opened]
     incidents.sort(key=lambda incident: incident.get('date_opened'))
-    num_of_incidents_to_fetch = limit if limit <= len(incidents) else len(incidents)
-    incidents = incidents[:num_of_incidents_to_fetch]
+    incidents = incidents[:limit]
 
     incidents_obj_list: List[Dict[str, Any]] = [{
         'name': f'''{incident.get('brand')}:{incident.get('identifier')}''',
@@ -411,10 +384,17 @@ def fraud_watch_incidents_list_command(client: Client, args: Dict) -> CommandRes
     status = args.get('status')
     page = get_and_validate_positive_int_argument(args, 'page')
     limit = get_and_validate_positive_int_argument(args, 'limit')
-    from_date = get_time_parameter(args.get('from'), parse_format=True)
-    to_date = get_time_parameter(args.get('to'), parse_format=True)
+
+    from_date = get_time_parameter(args.get('from'))
+    if from_date:
+        from_date = from_date.strftime('%Y-%m-%d')
+
+    to_date = get_time_parameter(args.get('to'))
+    if to_date:
+        to_date = to_date.strftime('%Y-%m-%d')
+
     if from_date and not to_date:
-        to_date = datetime.now(timezone.utc).strftime(FRAUD_WATCH_DATE_FORMAT)
+        to_date = get_time_parameter('tomorrow').strftime(FRAUD_WATCH_DATE_FORMAT)
 
     raw_response = client.incidents_list(brand, status, page, limit, from_date, to_date)
     if raw_response.get('error'):
@@ -630,7 +610,7 @@ def fraud_watch_incident_contact_emails_list_command(client: Client, args: Dict)
             page_error_msg = f'''Make sure page index: {page} is within bounds.''' if page else ''
             unknown_incident_msg = f'''Make sure incident id: {incident_id} is correct.'''
             raise DemistoException(
-                f'''Error occurred in command 'fraudwatch-incident-contact-emails-list'. {page_error_msg}'''
+                f'''Error occurred. {page_error_msg}'''
                 f' {unknown_incident_msg}')
         raise e
 
@@ -693,10 +673,8 @@ def fraud_watch_incident_urls_add_command(client: Client, args: Dict) -> Command
         CommandResults.
     """
     incident_id = args.get('incident_id')
-    raw_urls = argToList(args.get('urls'))
-
     urls: Dict[str, List[str]] = {
-        'urls[]': [raw_url for raw_url in raw_urls]
+        'urls[]': argToList(args.get('urls'))
     }
 
     raw_response = client.incident_urls_add(incident_id, urls)
