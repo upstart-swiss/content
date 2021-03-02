@@ -1,9 +1,9 @@
 import pytz
 import urllib3
+from requests import Response
 
 import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401
-from requests import Response
 
 # disable insecure warnings
 urllib3.disable_warnings()
@@ -63,8 +63,8 @@ class Client(BaseClient):
             error_handler=fraud_watch_error_handler
         )
 
-    def incidents_list(self, brand: Optional[str], status: Optional[str], page: Optional[int],
-                       limit: Optional[int], from_date: Optional[str], to_date: Optional[str]):
+    def incidents_list(self, brand: Optional[str] = None, status: Optional[str] = None, page: Optional[int] = None,
+                       limit: Optional[int] = None, from_date: Optional[str] = None, to_date: Optional[str] = None):
         params = assign_params(
             brand=brand,
             status=status,
@@ -83,9 +83,9 @@ class Client(BaseClient):
             params=params
         )
 
-    def incident_report(self, brand: Optional[str], incident_type: Optional[str],
-                        reference_id: Optional[str], primary_url: Optional[str], urls: Optional[List[str]],
-                        evidence: Optional[str], instructions: Optional[str]):
+    def incident_report(self, brand: str, incident_type: str, primary_url: str,
+                        reference_id: Optional[str] = None, urls: Optional[List[str]] = None,
+                        evidence: Optional[str] = None, instructions: Optional[str] = None):
         return self.http_request(
             method='POST',
             url_suffix='incidents',
@@ -101,8 +101,8 @@ class Client(BaseClient):
             headers={**self.base_headers, **self.URL_ENCODED_HEADER}
         )
 
-    def incident_update(self, incident_id: Optional[str], brand: Optional[str], reference_id: Optional[str],
-                        evidence: Optional[str], instructions: Optional[str]):
+    def incident_update(self, incident_id: str, brand: Optional[str] = None, reference_id: Optional[str] = None,
+                        evidence: Optional[str] = None, instructions: Optional[str] = None):
         return self.http_request(
             method='PUT',
             url_suffix=f'incident/{incident_id}',
@@ -115,26 +115,25 @@ class Client(BaseClient):
             headers={**self.base_headers, **self.URL_ENCODED_HEADER}
         )
 
-    def incident_list_by_id(self, incident_id: Optional[str]):
+    def incident_list_by_id(self, incident_id: str):
         return self.http_request(
             method='GET',
             url_suffix=f'incident/{incident_id}'
         )
 
-    def incident_get_by_reference(self, reference_id: Optional[str]):
+    def incident_get_by_reference(self, reference_id: str):
         return self.http_request(
             method='GET',
             url_suffix=f'incident/reference/{reference_id}'
         )
 
-    def incident_forensic_get(self, incident_id: Optional[str]):
+    def incident_forensic_get(self, incident_id: str):
         return self.http_request(
             method='GET',
             url_suffix=f'incident/{incident_id}/forensic'
         )
 
-    def incident_contact_emails_list(self, incident_id: Optional[str], page: Optional[int],
-                                     limit: Optional[int]):
+    def incident_contact_emails_list(self, incident_id: str, page: Optional[int] = None, limit: Optional[int] = None):
         return self.http_request(
             method='GET',
             url_suffix=f'incident/{incident_id}/message',
@@ -144,7 +143,7 @@ class Client(BaseClient):
             )
         )
 
-    def incident_messages_add(self, incident_id: Optional[str], message_content: Any):
+    def incident_messages_add(self, incident_id: str, message_content: Any):
         return self.http_request(
             method='POST',
             url_suffix=f'incident/{incident_id}/message/add',
@@ -152,7 +151,7 @@ class Client(BaseClient):
             headers={**self.base_headers, **self.JSON_CONTENT_HEADER}
         )
 
-    def incident_urls_add(self, incident_id: Optional[str], urls: Dict[str, List[str]]):
+    def incident_urls_add(self, incident_id: str, urls: Dict[str, List[str]]):
         return self.http_request(
             method='POST',
             url_suffix=f'incident/{incident_id}/urls/add',
@@ -160,14 +159,14 @@ class Client(BaseClient):
             headers={**self.base_headers, **self.URL_ENCODED_HEADER}
         )
 
-    def attachment_upload_command(self, incident_id: Optional[str], file: Any):
+    def attachment_upload_command(self, incident_id: str, file: Any):
         return self.http_request(
             method='POST',
             url_suffix=f'incident/{incident_id}/upload',
             files=file
         )
 
-    def brands_list(self, page: Optional[int], limit: Optional[int]):
+    def brands_list(self, page: Optional[int] = None, limit: Optional[int] = None):
         return self.http_request(
             method='GET',
             url_suffix='account/brands',
@@ -303,7 +302,7 @@ def fetch_incidents_command(client: Client, params: Dict, last_run: Dict):
     current_page = 1
     while True:
         raw_response = client.incidents_list(brand=brand, status=status, page=current_page, limit=MAX_LIMIT_VALUE,
-                                             from_date=from_date, to_date=None)
+                                             from_date=from_date)
         if raw_response.get('error'):
             raise DemistoException(
                 f'''Error occurred while pulling incidents from FraudWatch: {raw_response.get('error')}''')
@@ -346,7 +345,7 @@ def test_module(client: Client, params: Dict) -> str:
         (str): 'ok' if test passed, anything else will fail the test.
     """
     try:
-        fetch_incidents_command(client, params, {})
+        fetch_incidents_command(client, params, dict())
         return 'ok'
     except DemistoException as e:
         if 'Forbidden' in str(e) or 'Authorization' in str(e):
@@ -385,13 +384,11 @@ def fraud_watch_incidents_list_command(client: Client, args: Dict) -> CommandRes
     page = get_and_validate_positive_int_argument(args, 'page')
     limit = get_and_validate_positive_int_argument(args, 'limit')
 
-    from_date = get_time_parameter(args.get('from'))
-    if from_date:
-        from_date = from_date.strftime('%Y-%m-%d')
+    if from_date := get_time_parameter(args.get('from')):
+        from_date = from_date.strftime(FRAUD_WATCH_DATE_FORMAT)
 
-    to_date = get_time_parameter(args.get('to'))
-    if to_date:
-        to_date = to_date.strftime('%Y-%m-%d')
+    if to_date := get_time_parameter(args.get('to')):
+        to_date = to_date.strftime(FRAUD_WATCH_DATE_FORMAT)
 
     if from_date and not to_date:
         to_date = get_time_parameter('tomorrow').strftime(FRAUD_WATCH_DATE_FORMAT)
@@ -446,16 +443,15 @@ def fraud_watch_incident_report_command(client: Client, args: Dict) -> CommandRe
     Returns:
         CommandResults.
     """
-    brand = args.get('brand')
-    incident_type = args.get('type')
+    brand: str = args.get('brand')  # type: ignore
+    incident_type: str = args.get('type')  # type: ignore
+    primary_url: str = args.get('primary_url')  # type: ignore
     reference_id = args.get('reference_id')
-    primary_url = args.get('primary_url')
     urls = args.get('urls')
     evidence = args.get('evidence')
     instructions = args.get('instructions')
 
-    raw_response = client.incident_report(brand, incident_type, reference_id, primary_url, urls,
-                                          evidence, instructions)
+    raw_response = client.incident_report(brand, incident_type, primary_url, reference_id, urls, evidence, instructions)
 
     return CommandResults(
         outputs_prefix='FraudWatch.Incident',
@@ -491,7 +487,7 @@ def fraud_watch_incident_update_command(client: Client, args: Dict) -> CommandRe
     Returns:
         CommandResults.
     """
-    incident_id = args.get('incident_id')
+    incident_id: str = args.get('incident_id')  # type: ignore
     brand = args.get('brand')
     reference_id = args.get('reference_id')
     evidence = args.get('evidence')
@@ -529,8 +525,8 @@ def fraud_watch_incident_get_by_identifier_command(client: Client, args: Dict) -
     Returns:
         CommandResults.
     """
-    incident_id = args.get('incident_id')
-    reference_id = args.get('reference_id')
+    incident_id: str = args.get('incident_id')  # type: ignore
+    reference_id: str = args.get('reference_id')  # type: ignore
 
     if (incident_id and reference_id) or (not incident_id and not reference_id):
         raise DemistoException('Exactly one of reference id or incident id must be given.')
@@ -564,7 +560,7 @@ def fraud_watch_incident_forensic_get_command(client: Client, args: Dict) -> Com
     Returns:
         CommandResults.
     """
-    incident_id = args.get('incident_id')
+    incident_id: str = args.get('incident_id')  # type: ignore
 
     raw_response = client.incident_forensic_get(incident_id)
     outputs = remove_empty_elements(raw_response)
@@ -599,7 +595,7 @@ def fraud_watch_incident_contact_emails_list_command(client: Client, args: Dict)
     Returns:
         CommandResults.
     """
-    incident_id = args.get('incident_id')
+    incident_id: str = args.get('incident_id')  # type: ignore
     page = get_and_validate_positive_int_argument(args, 'page')
     limit = get_and_validate_positive_int_argument(args, 'limit')
 
@@ -643,7 +639,7 @@ def fraud_watch_incident_messages_add_command(client: Client, args: Dict):
     Returns:
         CommandResults.
     """
-    incident_id = args.get('incident_id')
+    incident_id: str = args.get('incident_id')  # type: ignore
     message_content = args.get('message_content')
 
     raw_response = client.incident_messages_add(incident_id, message_content)
@@ -672,7 +668,7 @@ def fraud_watch_incident_urls_add_command(client: Client, args: Dict) -> Command
     Returns:
         CommandResults.
     """
-    incident_id = args.get('incident_id')
+    incident_id: str = args.get('incident_id')  # type: ignore
     urls: Dict[str, List[str]] = {
         'urls[]': argToList(args.get('urls'))
     }
@@ -703,7 +699,7 @@ def fraud_watch_attachment_upload_command(client: Client, args: Dict):
     Returns:
         CommandResults.
     """
-    incident_id = args.get('incident_id')
+    incident_id: str = args.get('incident_id')  # type: ignore
     entry_id = args.get('entry_id')
 
     try:
