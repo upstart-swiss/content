@@ -3,15 +3,44 @@ commonfields:
   id: FraudWatch
   version: -1
 configuration:
-- additionalinfo: The API Key to use for connection
-  display: API Key
-  name: api_key
-  required: true
-  type: 4
 - display: Fetch incidents
   name: isFetch
   required: false
   type: 8
+- display: Not In Use. Fill API token inside password section
+  name: credentials
+  type: 9
+  required: true
+  hiddenusername: true
+  additionalinfo: The API Key to use for connection.
+- display: Server URL
+  name: base_url
+  type: 0
+  required: false
+  additionalinfo: URL of the server.
+  defaultvalue: https://www.phishportal.com
+- display: Brand
+  name: brand
+  type: 0
+  required: false
+  additionalinfo: Fetch incidents which corresponds to the given brand. Returns error
+    if brand does not exist. List of existing brands can be retrieved by 'fraudwatch-brands-list'
+    command.
+- display: Status
+  name: status
+  type: 15
+  required: false
+  options:
+  - active
+  - new
+  - monitor
+  - reactive
+  - onhold
+  - closed
+  - closedmonitor
+  - rejected
+  - duplicate
+  additionalinfo: Fetch incidents which corresponds to the given status.
 - display: Incident type
   name: incidentType
   required: false

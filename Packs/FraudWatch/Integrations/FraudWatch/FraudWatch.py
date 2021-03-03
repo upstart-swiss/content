@@ -12,7 +12,7 @@ urllib3.disable_warnings()
 MINIMUM_POSITIVE_VALUE = 1
 MAX_LIMIT_VALUE = 200
 DEFAULT_LIMIT_VALUE = 50
-BASE_URL = 'https://www.phishportal.com/v1/'
+DEFAULT_URL = 'https://www.phishportal.com/'
 
 FRAUD_WATCH_DATE_FORMAT = '%Y-%m-%d'
 
@@ -761,17 +761,21 @@ def main() -> None:
     command = demisto.command()
     params = demisto.params()
     args = demisto.args()
+    demisto.error(f'params = {params}')
 
     verify_certificate = not params.get('insecure', False)
     proxy = params.get('proxy', False)
-    api_key = params.get('api_key')
+
+    credentials = params.get('credentials')
+    api_key = credentials.get('password')
+    base_url = urljoin(params.get('base_url', DEFAULT_URL), 'v1/')
 
     demisto.debug(f'Command being called is {command}')
     try:
 
         client = Client(
             api_key=api_key,
-            base_url=BASE_URL,
+            base_url=base_url,
             verify=verify_certificate,
             proxy=proxy)
 

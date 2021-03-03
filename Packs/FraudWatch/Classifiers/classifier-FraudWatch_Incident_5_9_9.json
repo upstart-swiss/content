@@ -27,6 +27,10 @@
                     "complex": null,
                     "simple": "reference_id"
                 },
+                "Incident Link": {
+                    "complex": null,
+                    "simple": "link"
+                },
                 "Ticket Closed Date": {
                     "complex": null,
                     "simple": "date_closed"

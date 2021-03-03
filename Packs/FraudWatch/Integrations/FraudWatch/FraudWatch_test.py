@@ -14,8 +14,9 @@ from FraudWatch import get_and_validate_positive_int_argument, get_time_paramete
     fraud_watch_incidents_list_command, fraud_watch_incident_get_by_identifier_command, fetch_incidents_command, \
     fraud_watch_incident_forensic_get_command, fraud_watch_incident_contact_emails_list_command, \
     fraud_watch_brands_list_command, fraud_watch_incident_report_command, fraud_watch_incident_update_command, \
-    fraud_watch_incident_messages_add_command, fraud_watch_incident_urls_add_command, BASE_URL, MINIMUM_POSITIVE_VALUE
+    fraud_watch_incident_messages_add_command, fraud_watch_incident_urls_add_command, DEFAULT_URL, MINIMUM_POSITIVE_VALUE
 
+BASE_URL = f'{DEFAULT_URL}v1/'
 client = Client(
     api_key='api_key',
     base_url=BASE_URL,

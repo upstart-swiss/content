@@ -1,5 +1,17 @@
 Manage incidents via the Fraudwatch API. FraudWatch International provides a fully managed Enterprise Digital Brand Protection Suite, including online brand management & monitoring as well as providing other brand protection solutions that protect organizations and their customers around the world against online brand-related abuse.
 This integration was integrated and tested with version v1 of FraudWatch Phishportal
+
+### Retrieve FraudWatch API token
+
+1. Navigate to the [Phishportal site](https://www.phishportal.com/).
+2. Enter your Username and Password.
+3. On the left sidebar, click on 'Portal API'.
+4. On the top of the page, you should see your API Token.
+5. If the API token is out of date, click on the **Regenerate Token** button adjacent to the **API token**, to generate a new token.
+6. Write the API token under **Password** argument.
+
+![FraudWatch Retrieve API token](https://raw.githubusercontent.com/demisto/content/f411a49c2732b217fb424ca54f7e7931634d743b/Packs/FraudWatch/doc_files/Token_Generate_Image.png)
+
 ## Configure FraudWatch on Cortex XSOAR
 
 1. Navigate to **Settings** > **Integrations** > **Servers & Services**.
@@ -18,6 +30,10 @@ This integration was integrated and tested with version v1 of FraudWatch Phishpo
     | Use system proxy settings |  | False |
 
 4. Click **Test** to validate the URLs, token, and connection.
+
+### Fetch Incidents
+Due to limitations in FraudWatch API, first fetch timestamp can be at most 1 day.
+
 ## Commands
 You can execute these commands from the Cortex XSOAR CLI, as part of an automation, or in a playbook.
 After you successfully execute a command, a DBot message appears in the War Room with the command details.
