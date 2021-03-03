@@ -3250,7 +3250,12 @@
             "fromversion": "6.0.0",
             "toversion": "6.0.9",
             "timeout": 250
+        },
+        {
+            "integrations": "FraudWatch",
+            "playbookID": "FraudWatch-Test"
         }
+
     ],
     "skipped_tests": {
         "Github IAM - Test Playbook": "Issue 32383",

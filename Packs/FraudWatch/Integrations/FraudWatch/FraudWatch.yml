@@ -7,7 +7,8 @@ configuration:
   name: isFetch
   required: false
   type: 8
-- display: Not In Use. Fill API token inside password section
+- display: Not In Use. Fill API token inside API Token section
+  displaypassword: API Token
   name: credentials
   type: 9
   required: true
@@ -55,7 +56,8 @@ configuration:
   name: first_fetch
   required: false
   type: 0
-  additionalinfo: 'format: (<number> <time unit>, e.g., 12 hours, 1 day). Due to limitations in FraudWatch API, first fetch timestamp can be at most 1 day.'
+  additionalinfo: 'format: (<number> <time unit>, e.g., 12 hours, 1 day). Due to limitations
+    in FraudWatch API, first fetch timestamp can be at most 1 day.'
 - defaultvalue: '50'
   name: max_fetch
   required: false
@@ -69,13 +71,19 @@ configuration:
   name: proxy
   required: false
   type: 8
-description: Manage incidents via the Fraudwatch API. FraudWatch International provides a fully managed Enterprise Digital Brand Protection Suite, including online brand management & monitoring as well as providing other brand protection solutions that protect organizations and their customers around the world against online brand-related abuse.
+description: Manage incidents via the Fraudwatch API. FraudWatch International provides
+  a fully managed Enterprise Digital Brand Protection Suite, including online brand
+  management & monitoring as well as providing other brand protection solutions that
+  protect organizations and their customers around the world against online brand-related
+  abuse.
 display: FraudWatch
 name: FraudWatch
 script:
   commands:
   - arguments:
-    - description: Retrieve incidents which corresponds to the given brand. Returns error if brand does not exist. List of existing brands can be retrieved by 'fraudwatch-brands-list' command.
+    - description: Retrieve incidents which corresponds to the given brand. Returns
+        error if brand does not exist. List of existing brands can be retrieved by
+        'fraudwatch-brands-list' command.
       name: brand
     - auto: PREDEFINED
       description: Retrieve incidents which corresponds to the given status.
@@ -95,13 +103,15 @@ script:
       defaultValue: '20'
     - description: Retrieve incidents by the given page number.
       name: page
-    - description: "Retrieve alerts that their date opened is higher or equal
-         to 'from' value. Supports ISO and time range (<number> <time unit>, e.g., 12 hours, 7 days) formats.
-          If 'to' argument is not given, default value for 'to' is current time."
+    - description: "Retrieve alerts that their date opened is higher or equal to 'from'\
+        \ value. Supports ISO and time range (<number> <time unit>, e.g., 12 hours,\
+        \ 7 days) formats. If 'to' argument is not given, default value for 'to' is\
+        \ current time."
       name: from
-    - description: "Retrieve alerts that their date opened is lower or equal to
-         'to' value. Supports ISO and time range (<number> <time unit>, e.g., 12 hours, 7 days) formats.
-          If 'from' argument is not given, default value for 'from' is 12 months before 'to'."
+    - description: "Retrieve alerts that their date opened is lower or equal to 'to'\
+        \ value. Supports ISO and time range (<number> <time unit>, e.g., 12 hours,\
+        \ 7 days) formats. If 'from' argument is not given, default value for 'from'\
+        \ is 12 months before 'to'."
       name: to
     description: Get list of incidents from FraudWatch service.
     name: fraudwatch-incidents-list
@@ -164,7 +174,9 @@ script:
       description: URL to the incident page in FraudWatch User Interface.
       type: String
   - arguments:
-    - description: The brand associated to the reported incident. Returns error if brand does not exist. List of existing brands can be retrieved by 'fraudwatch-brands-list' command.
+    - description: The brand associated to the reported incident. Returns error if
+        brand does not exist. List of existing brands can be retrieved by 'fraudwatch-brands-list'
+        command.
       name: brand
       required: true
     - auto: PREDEFINED
@@ -267,7 +279,8 @@ script:
       name: incident_id
       required: true
     - description: Updates the incident associated to the 'incident_id' with brand
-        given. Returns error if brand does not exist. List of existing brands can be retrieved by 'fraudwatch-brands-list' command.
+        given. Returns error if brand does not exist. List of existing brands can
+        be retrieved by 'fraudwatch-brands-list' command.
       name: brand
     - description: Updates the incident associated to the 'incident_id' with reference
         ID given. Reference ID should be unique, and can be used by command 'fraudwatch-incident-get-by-identifier'
@@ -465,7 +478,8 @@ script:
       incident ID.
     name: fraudwatch-incident-attachment-upload
   - arguments:
-    - description: Total number of brands in a page. Maximum number is 100, minimum number is 20.
+    - description: Total number of brands in a page. Maximum number is 100, minimum
+        number is 20.
       name: limit
       defaultValue: '20'
     - description: Retrieve brands by the given page number.
