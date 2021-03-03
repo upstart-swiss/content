@@ -253,8 +253,6 @@ def bitcoin_abuse_report_address_command(bitcoin_client: BitcoinAbuseClient, arg
     abuser = args.get('abuser', '')
     description = args.get('description', '')
 
-    raise DemistoException('fail on purpose')
-
     if abuse_type_id is None:
         raise DemistoException('Bitcoin Abuse: invalid type of abuse, please insert a correct abuse type')
     if abuse_type_id == ABUSE_TYPE_NAME_TO_ID['other'] and abuse_type_other is None:
