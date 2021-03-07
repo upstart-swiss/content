@@ -767,6 +767,9 @@ def main() -> None:
 
     credentials = params.get('credentials')
     api_key = credentials.get('password')
+    if not api_key:
+        raise DemistoException('API token was not given. Please insert an API token')
+
     base_url = urljoin(params.get('base_url', DEFAULT_URL), 'v1/')
 
     demisto.debug(f'Command being called is {command}')
