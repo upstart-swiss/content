@@ -761,7 +761,6 @@ def main() -> None:
     command = demisto.command()
     params = demisto.params()
     args = demisto.args()
-    demisto.error(f'params = {params}')
 
     verify_certificate = not params.get('insecure', False)
     proxy = params.get('proxy', False)
