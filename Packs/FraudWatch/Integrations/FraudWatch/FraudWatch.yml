@@ -7,7 +7,7 @@ configuration:
   name: isFetch
   required: false
   type: 8
-- display: API Token (fill in password field)
+- display: API Token (fill in the password field)
   displaypassword: API Token
   name: credentials
   type: 9
@@ -16,7 +16,7 @@ configuration:
 - display: Server URL
   name: base_url
   type: 0
-  required: false
+  required: true
   additionalinfo: URL of the server.
   defaultvalue: https://www.phishportal.com
 - display: Brand

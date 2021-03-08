@@ -5,7 +5,8 @@
 3. On the left sidebar, click on 'Portal API'.
 4. On the top of the page, you should see your API Token.
 5. If the API token is out of date, click on the **Regenerate Token** button adjacent to the **API token**, to generate a new token.
-6. Write the API token under **Password** argument.
+6. Set the API token in the **Password** parameter.
+**NOTE**: no need to set the **Username** parameter it can be left blank (visible only on 6.0.2 and lower versions).
 
 ### Fetch Incidents
 Due to limitations in FraudWatch API, first fetch timestamp can be at most 1 day.

@@ -768,7 +768,8 @@ def main() -> None:
     credentials = params.get('credentials')
     api_key = credentials.get('password')
     if not api_key:
-        raise DemistoException('API token was not given. Please insert an API token')
+        raise DemistoException(
+            'API token was not given. Please insert your API token. See documentation for further info')
 
     base_url = urljoin(params.get('base_url', DEFAULT_URL), 'v1/')
 
