@@ -97,9 +97,10 @@ script:
       - closedmonitor
       - rejected
       - duplicate
-    - description: Total number of Incidents in a page. Maximum number is 200.
+    - description: Number of incidents to retrieve.
       name: limit
-      defaultValue: '20'
+    - description: Total number of Incidents in a page. Maximum number is 200.
+      name: page_size
     - description: Retrieve incidents by the given page number.
       name: page
     - description: "Retrieve alerts that their date opened is higher or equal to 'from'\
@@ -410,9 +411,10 @@ script:
         ID is the 'identifier' field returned by command 'fraudwatch-incidents-list'.
       name: incident_id
       required: true
-    - description: Maximum number of contact emails in a page. Maximum number is 200.
-      defaultValue: '20'
+    - description: Number of contact emails to retrieve.
       name: limit
+    - description: Maximum number of contact emails in a page. Maximum number is 200.
+      name: page_size
     - description: Retrieve contact emails by the given page number.
       name: page
     description: Provides contact emails for the incident associated to the given
@@ -477,10 +479,11 @@ script:
       incident ID.
     name: fraudwatch-incident-attachment-upload
   - arguments:
+    - description: Number of brands to retrieve.
+      name: limit
     - description: Total number of brands in a page. Maximum number is 100, minimum
         number is 20.
-      name: limit
-      defaultValue: '20'
+      name: page_size
     - description: Retrieve brands by the given page number.
       name: page
     description: Gets a list of brands from FraudWatch service.
@@ -504,7 +507,7 @@ script:
     - contextPath: FraudWatch.Brand.services.action
       description: The action of the service.
       type: String
-  dockerimage: demisto/python3:3.9.1.15759
+  dockerimage: demisto/python3:3.9.2.17246
   isFetchSamples: true
   isfetch: true
   runonce: false

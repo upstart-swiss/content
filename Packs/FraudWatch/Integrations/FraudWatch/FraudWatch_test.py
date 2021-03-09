@@ -3,18 +3,20 @@
 """
 import io
 import json
+from datetime import timezone, timedelta
 from typing import *
 from unittest.mock import Mock
+
 import pytest
 import pytz
-from datetime import timezone, timedelta
 
 from CommonServerPython import DemistoException, datetime, CommandResults
 from FraudWatch import get_and_validate_positive_int_argument, get_time_parameter, Client, \
     fraud_watch_incidents_list_command, fraud_watch_incident_get_by_identifier_command, fetch_incidents_command, \
     fraud_watch_incident_forensic_get_command, fraud_watch_incident_contact_emails_list_command, \
     fraud_watch_brands_list_command, fraud_watch_incident_report_command, fraud_watch_incident_update_command, \
-    fraud_watch_incident_messages_add_command, fraud_watch_incident_urls_add_command, DEFAULT_URL, MINIMUM_POSITIVE_VALUE
+    fraud_watch_incident_messages_add_command, fraud_watch_incident_urls_add_command, DEFAULT_URL, \
+    MINIMUM_POSITIVE_VALUE, get_page_and_limit_args, DEFAULT_PAGE_SIZE_VALUE
 
 BASE_URL = f'{DEFAULT_URL}v1/'
 client = Client(
@@ -33,13 +35,15 @@ def util_load_json(path):
 command_tests_data = util_load_json('test_data/commands_data.json')
 
 
-@pytest.mark.parametrize('args, argument_name, expected',
+@pytest.mark.parametrize('args, argument_name,minimum, maximum, expected',
                          [
-                             ({'page': 3}, 'limit', None),
-                             ({'limit': 4}, 'limit', 4),
-                             ({'limit': 1}, 'limit', 1)
+                             ({'page': 3}, 'limit', None, None, None),
+                             ({'limit': 4}, 'limit', None, None, 4),
+                             ({'limit': 1}, 'limit', None, None, 1),
+                             ({'limit': 3}, 'limit', 3, 3, 3),
+                             ({'page_size': 25}, 'page_size', 20, 100, 25)
                          ])
-def test_get_and_validate_positive_int_argument_valid_arguments(args, argument_name, expected):
+def test_get_and_validate_positive_int_argument_valid_arguments(args, argument_name, minimum, maximum, expected):
     """
     Given:
      - Demisto arguments.
@@ -58,17 +62,25 @@ def test_get_and_validate_positive_int_argument_valid_arguments(args, argument_n
     assert (get_and_validate_positive_int_argument(args, argument_name)) == expected
 
 
-def test_get_and_validate_positive_int_argument_invalid_arguments():
+@pytest.mark.parametrize('args, arg_name, maximum, expected_err_msg',
+                         [
+                             ({'limit': -3}, 'limit', None,
+                              f'limit should be equal or higher than {MINIMUM_POSITIVE_VALUE}'),
+                             ({'page_size': 101}, 'page_size', 100, 'page_size should be equal or lower than 100')
+                         ])
+def test_get_and_validate_positive_int_argument_invalid_arguments(args, arg_name, maximum, expected_err_msg):
     """
     Given:
      - Demisto arguments.
      - Argument name to extract from Demisto arguments as number.
 
     When:
-     - Argument exists and is not positive.
+    - Case a: Argument exists, and is lower than default 'lower_bound' value.
+    - Case b: Argument exists, and is above given 'maximum_bound' value.
 
     Then:
-     - Ensure that DemistoException is thrown with error message which indicates that value is not positive.
+     - Ensure that DemistoException is thrown with error message indicating that value is not positive.
+     - Ensure that DemistoException is thrown with error message indicating that value is higher than maximum expected.
     """
     with pytest.raises(DemistoException, match=f'limit should be equal or higher than {MINIMUM_POSITIVE_VALUE}'):
         get_and_validate_positive_int_argument({'limit': -3}, 'limit')
@@ -322,3 +334,57 @@ def test_fetch_incidents_command():
     incidents, next_run = fetch_incidents_command(client, {'max_fetch': 2}, next_run)
     assert incidents == []
     assert next_run == {'last_fetch_time': five_minutes_before.isoformat()}
+
+
+@pytest.mark.parametrize('args, expected',
+                         [
+                             (dict(), (MINIMUM_POSITIVE_VALUE, DEFAULT_PAGE_SIZE_VALUE)),
+                             ({'page': 5}, (5, DEFAULT_PAGE_SIZE_VALUE)),
+                             ({'limit': 250}, (MINIMUM_POSITIVE_VALUE, 250)),
+                             ({'page_size': 20}, (MINIMUM_POSITIVE_VALUE, 20)),
+                             ({'page': 4, 'page_size': 120}, (4, 120))
+                         ])
+def test_get_page_and_limit_args_valid(args, expected):
+    """
+    Given:
+    - Demisto arguments ('page', 'page_size', 'limit').
+
+    When:
+     Case a: 'page', 'page_size' and 'limit' doesn't exist.
+     Case b: 'page' exists, 'page_size' and 'limit' doesn't exist.
+     Case c: 'limit' exists, 'page' and 'page_size' doesn't exist.
+     Case d: 'page_size' exists, 'page' and 'limit' doesn't exist.
+     Case e: 'page' and 'page_size' exists, and 'limit' doesn't exist.
+
+    Then:
+     - Case a: Ensure tuple of ('MINIMUM_POSITIVE_VALUE', 'DEFAULT_PAGE_SIZE_VALUE') is returned.
+     - Case b: Ensure tuple of (5, 'DEFAULT_PAGE_SIZE_VALUE') is returned.
+     - Case c: Ensure tuple of ('MINIMUM_POSITIVE_VALUE', 250) is returned.
+     - Case d: Ensure tuple of ('MINIMUM_POSITIVE_VALUE', 20) is returned.
+     - Case e: Ensure tuple of (4, 120) is returned.
+    """
+    assert get_page_and_limit_args(args) == expected
+
+
+@pytest.mark.parametrize('args',
+                         [
+                             ({'page': 2, 'page_size': 4, 'limit': 3}),
+                             ({'page': 2, 'limit': 3}),
+                             ({'page_size': 4, 'limit': 3})
+                         ])
+def test_get_page_and_limit_args_invalid(args):
+    """
+    Given:
+    - Demisto arguments ('page', 'page_size', 'limit').
+
+    When:
+     Case a: 'page', 'page_size' and 'limit' exists.
+     Case b: 'page', 'limit' exists.
+     Case c: 'page_size' and 'limit' exists.
+
+    Then:
+    - Ensure DemistoException is thrown in each case.
+    """
+    with pytest.raises(DemistoException,
+                       match='''Limit argument cannot be given with 'page_size' or 'page' argument.'''):
+        get_page_and_limit_args(args)

@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import pytz
 import urllib3
 from requests import Response
@@ -10,8 +12,10 @@ urllib3.disable_warnings()
 
 ''' CONSTANTS '''
 MINIMUM_POSITIVE_VALUE = 1
-MAX_LIMIT_VALUE = 200
-DEFAULT_LIMIT_VALUE = 50
+MAX_PAGE_SIZE_VALUE = 200
+DEFAULT_PAGE_SIZE_VALUE = 50
+MAX_PAGE_SIZE_BRANDS = 100
+MINIMUM_PAGE_SIZE_BRANDS = 20
 DEFAULT_URL = 'https://www.phishportal.com/'
 
 FRAUD_WATCH_DATE_FORMAT = '%Y-%m-%d'
@@ -214,25 +218,33 @@ def fraud_watch_error_handler(res: Response):
         raise DemistoException(err_msg, res=res)
 
 
-def get_and_validate_positive_int_argument(args: Dict, argument_name: str) -> Optional[int]:
+def get_and_validate_positive_int_argument(args: Dict, argument_name: str, lower_bound: int = MINIMUM_POSITIVE_VALUE,
+                                           upper_bound: Optional[int] = None) -> Optional[int]:
     """
     Extracts int argument from Demisto arguments.
     If argument exists, validates that:
-    - min <= argument's value.
+    - lower_bound <= argument's value.
+    - argument's value <= maximum_bound if maximum_bound is not None.
 
     Args:
         args (Dict): Demisto arguments.
         argument_name (str): The name of the argument to extract.
+        lower_bound (int): Lower number bound of the argument value.
+        upper_bound (Optional[int]): Maximum number bound of the argument value, if given.
 
     Returns:
-        - (int): If argument exists and is equal or higher than min, returns argument.
+        - (int): If argument exists and is between 'lower_bound' and 'maximum_bound', returns argument.
         - (None): If argument does not exist, returns None.
-        - (Exception): If argument exists and is lower than min, raises DemistoException.
+        - (Exception): If argument exists and is lower than 'lower_bound' or
+                       higher than 'maximum_bound' (if 'maximum_bound' exists), raises DemistoException.
     """
     argument_value = arg_to_number(args.get(argument_name), arg_name=argument_name)
-
-    if argument_value and argument_value < MINIMUM_POSITIVE_VALUE:
-        raise DemistoException(f'{argument_name} should be equal or higher than {MINIMUM_POSITIVE_VALUE}')
+    if not argument_value:
+        return None
+    if argument_value < lower_bound:
+        raise DemistoException(f'{argument_name} should be equal or higher than {lower_bound}')
+    if upper_bound and upper_bound < argument_value:
+        raise DemistoException(f'{argument_name} should be equal or lower than {upper_bound}')
 
     return argument_value
 
@@ -262,6 +274,41 @@ def get_time_parameter(arg: Optional[str]):
 ''' COMMAND FUNCTIONS '''
 
 
+def get_page_and_limit_args(args: Dict, minimum_page_size: int = MINIMUM_POSITIVE_VALUE,
+                            maximum_page_size: int = MAX_PAGE_SIZE_VALUE) -> Tuple[int, int]:
+    """
+    Receives demisto argument, and extract the relevant arguments for limits and paging:
+    'page', 'page_size', 'limit'.
+    Follows the logic:
+    - 'limit' argument cannot be specified with 'page' or 'page_size' argument.
+    - 'page_size' argument is within its expected lower/upper bounds.
+    - If 'limit' is not given, and 'page_size' is, sets 'limit' value to 'page_size' value.
+    - If 'limit' is not given, and 'page_size' is not given, sets 'limit' value to 'DEFAULT_PAGE_SIZE_VALUE' value.
+    Args:
+        args (Dict): Demisto argument.
+        minimum_page_size (int): lower_bound for page size, default is 'MINIMUM_POSITIVE_VALUE' (1).
+        maximum_page_size (int): upper_bound for page size, default is 'MAX_PAGE_SIZE_VALUE' (200).
+
+    Returns:
+        - (int, int): 'page', 'limit' extracted, or their default values used.
+        - (DemistoException): If arguments don't follow the expected logic mentioned.
+    """
+    page = get_and_validate_positive_int_argument(args, 'page')
+    page_size = get_and_validate_positive_int_argument(args, 'page_size', lower_bound=minimum_page_size,
+                                                       upper_bound=maximum_page_size)
+    limit = get_and_validate_positive_int_argument(args, 'limit')
+    if limit and (page_size or page):
+        raise DemistoException('''Limit argument cannot be given with 'page_size' or 'page' argument.''')
+    if not limit and page_size:
+        limit = page_size
+    if not limit:
+        limit = DEFAULT_PAGE_SIZE_VALUE
+    if not page:
+        page = MINIMUM_POSITIVE_VALUE
+
+    return page, limit
+
+
 def fetch_incidents_command(client: Client, params: Dict, last_run: Dict):
     """
     Fetches new incidents from FraudWatch.
@@ -287,7 +334,7 @@ def fetch_incidents_command(client: Client, params: Dict, last_run: Dict):
     """
     brand = params.get('brand')
     status = params.get('status')
-    limit = arg_to_number(params.get('max_fetch', DEFAULT_LIMIT_VALUE))
+    limit = arg_to_number(params.get('max_fetch', DEFAULT_PAGE_SIZE_VALUE))
 
     yesterday = get_time_parameter('1 day')
     first_fetch_time_string = params.get('first_fetch', '1 days').strip()
@@ -301,7 +348,7 @@ def fetch_incidents_command(client: Client, params: Dict, last_run: Dict):
     # Need to fetch all incidents because FraudWatch does not sort incidents based on dates.
     current_page = 1
     while True:
-        raw_response = client.incidents_list(brand=brand, status=status, page=current_page, limit=MAX_LIMIT_VALUE,
+        raw_response = client.incidents_list(brand=brand, status=status, page=current_page, limit=MAX_PAGE_SIZE_VALUE,
                                              from_date=from_date)
         if raw_response.get('error'):
             raise DemistoException(
@@ -381,8 +428,7 @@ def fraud_watch_incidents_list_command(client: Client, args: Dict) -> CommandRes
     """
     brand = args.get('brand')
     status = args.get('status')
-    page = get_and_validate_positive_int_argument(args, 'page')
-    limit = get_and_validate_positive_int_argument(args, 'limit')
+    page, limit = get_page_and_limit_args(args)
 
     if from_date := get_time_parameter(args.get('from')):
         from_date = from_date.strftime(FRAUD_WATCH_DATE_FORMAT)
@@ -393,17 +439,32 @@ def fraud_watch_incidents_list_command(client: Client, args: Dict) -> CommandRes
     if from_date and not to_date:
         to_date = get_time_parameter('tomorrow').strftime(FRAUD_WATCH_DATE_FORMAT)
 
-    raw_response = client.incidents_list(brand, status, page, limit, from_date, to_date)
-    if raw_response.get('error'):
-        raise DemistoException(f'''Error occurred during the call to FraudWatch: {raw_response.get('error')}''')
-    outputs = raw_response.get('incidents')
+    raw_responses_list = []
+    outputs_list = []
+    count = limit
+    while limit > 0:
+        raw_response = client.incidents_list(brand, status, page, MAX_PAGE_SIZE_VALUE, from_date, to_date)
+        if not raw_response:
+            break
+        if raw_response.get('error'):
+            raise DemistoException(f'''Error occurred during the call to FraudWatch: {raw_response.get('error')}''')
+        raw_responses_list.append(raw_response)
+        outputs_list.append(raw_response.get('incidents'))
+        limit -= MAX_PAGE_SIZE_VALUE
+        page += 1
+
+    raw_responses = [response for responses in raw_responses_list for response in responses]
+    outputs = [output for outputs in outputs_list for output in outputs]
+
+    final_raw_responses = raw_responses[:count]
+    final_outputs = outputs[:count]
 
     return CommandResults(
         outputs_prefix='FraudWatch.Incident',
-        outputs=outputs,
+        outputs=final_outputs,
         outputs_key_field='identifier',
-        raw_response=raw_response,
-        readable_output=tableToMarkdown('FraudWatch Incidents', outputs, INCIDENT_LIST_MARKDOWN_HEADERS,
+        raw_response=final_raw_responses,
+        readable_output=tableToMarkdown('FraudWatch Incidents', final_outputs, INCIDENT_LIST_MARKDOWN_HEADERS,
                                         removeNull=True)
     )
 
@@ -596,11 +657,21 @@ def fraud_watch_incident_contact_emails_list_command(client: Client, args: Dict)
         CommandResults.
     """
     incident_id: str = args.get('incident_id')  # type: ignore
-    page = get_and_validate_positive_int_argument(args, 'page')
-    limit = get_and_validate_positive_int_argument(args, 'limit')
+    page, limit = get_page_and_limit_args(args)
+
+    raw_responses_list = []
+    outputs_list = []
+    count = limit
 
     try:
-        raw_response = client.incident_contact_emails_list(incident_id, page, limit)
+        while limit > 0:
+            raw_response = client.incident_contact_emails_list(incident_id, page, MAX_PAGE_SIZE_VALUE)
+            if not raw_response:
+                break
+            raw_responses_list.append(raw_response)
+            outputs_list.append([dict(output, identifier=incident_id) for output in raw_response])
+            limit -= MAX_PAGE_SIZE_VALUE
+            page += 1
     except DemistoException as e:
         if 'Contact email not found' in str(e):
             page_error_msg = f'''Make sure page index: {page} is within bounds.''' if page else ''
@@ -610,14 +681,18 @@ def fraud_watch_incident_contact_emails_list_command(client: Client, args: Dict)
                 f' {unknown_incident_msg}')
         raise e
 
-    outputs = [dict(output, identifier=incident_id) for output in raw_response]
+    raw_responses = [response for responses in raw_responses_list for response in responses]
+    outputs = [output for outputs in outputs_list for output in outputs]
+
+    final_raw_responses = raw_responses[:count]
+    final_outputs = outputs[:count]
 
     return CommandResults(
         outputs_prefix='FraudWatch.IncidentContacts',
-        outputs=outputs,
+        outputs=final_outputs,
         outputs_key_field='noteId',
-        raw_response=raw_response,
-        readable_output=tableToMarkdown("FraudWatch Incident Contacts Data", outputs,
+        raw_response=final_raw_responses,
+        readable_output=tableToMarkdown("FraudWatch Incident Contacts Data", final_outputs,
                                         ['noteId', 'incident_id', 'subject', 'creator', 'content', 'date'],
                                         removeNull=True)
     )
@@ -736,18 +811,32 @@ def fraud_watch_brands_list_command(client: Client, args: Dict) -> CommandResult
     Returns:
         CommandResults.
     """
-    page = get_and_validate_positive_int_argument(args, 'page')
-    limit = get_and_validate_positive_int_argument(args, 'limit')
-    raw_response = client.brands_list(page, limit)
+    page, limit = get_page_and_limit_args(args, minimum_page_size=MINIMUM_PAGE_SIZE_BRANDS,
+                                          maximum_page_size=MAX_PAGE_SIZE_BRANDS)
+    raw_responses_list = []
+    outputs_list = []
+    count = limit
+    while limit > 0:
+        raw_response = client.brands_list(page, MAX_PAGE_SIZE_BRANDS)
+        if not raw_response:
+            break
+        raw_responses_list.append(raw_response)
+        outputs_list.append(raw_response.get('brands'))
+        limit -= MAX_PAGE_SIZE_BRANDS
+        page += 1
 
-    outputs = raw_response.get('brands')
+    raw_responses = [response for responses in raw_responses_list for response in responses]
+    outputs = [output for outputs in outputs_list for output in outputs]
+
+    final_raw_responses = raw_responses[:count]
+    final_outputs = outputs[:count]
 
     return CommandResults(
         outputs_prefix='FraudWatch.Brand',
-        outputs=outputs,
+        outputs=final_outputs,
         outputs_key_field='name',
-        raw_response=raw_response,
-        readable_output=tableToMarkdown("FraudWatch Brands", outputs, ['name', 'active', 'client'], removeNull=True)
+        raw_response=final_raw_responses,
+        readable_output=tableToMarkdown("FraudWatch Brands", final_outputs, ['name', 'active', 'client'], removeNull=True)
     )
 
 
