@@ -1083,7 +1083,7 @@ script:
         description: How many object were found in the attributes.
         type: Number
     description: Retrives a behavioural relationship of the given file hash.
-  - name: vt-ip-passive-dns-data
+  - name: vt-passive-dns-data
     description: Returns passive DNS records by indicator.
     arguments:
     - name: ip
