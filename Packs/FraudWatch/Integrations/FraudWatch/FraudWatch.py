@@ -439,8 +439,8 @@ def fraud_watch_incidents_list_command(client: Client, args: Dict) -> CommandRes
     if from_date and not to_date:
         to_date = get_time_parameter('tomorrow').strftime(FRAUD_WATCH_DATE_FORMAT)
 
-    raw_responses_list = []
-    outputs_list = []
+    raw_responses = []
+    outputs = []
     count = limit
     while limit > 0:
         raw_response = client.incidents_list(brand, status, page, MAX_PAGE_SIZE_VALUE, from_date, to_date)
@@ -448,13 +448,10 @@ def fraud_watch_incidents_list_command(client: Client, args: Dict) -> CommandRes
             break
         if raw_response.get('error'):
             raise DemistoException(f'''Error occurred during the call to FraudWatch: {raw_response.get('error')}''')
-        raw_responses_list.append(raw_response)
-        outputs_list.append(raw_response.get('incidents'))
+        raw_responses.append(raw_response)
+        outputs.extend(raw_response.get('incidents', []))
         limit -= MAX_PAGE_SIZE_VALUE
         page += 1
-
-    raw_responses = [response for responses in raw_responses_list for response in responses]
-    outputs = [output for outputs in outputs_list for output in outputs]
 
     final_raw_responses = raw_responses[:count]
     final_outputs = outputs[:count]
@@ -659,8 +656,7 @@ def fraud_watch_incident_contact_emails_list_command(client: Client, args: Dict)
     incident_id: str = args.get('incident_id')  # type: ignore
     page, limit = get_page_and_limit_args(args)
 
-    raw_responses_list = []
-    outputs_list = []
+    raw_responses = []
     count = limit
 
     try:
@@ -668,8 +664,7 @@ def fraud_watch_incident_contact_emails_list_command(client: Client, args: Dict)
             raw_response = client.incident_contact_emails_list(incident_id, page, MAX_PAGE_SIZE_VALUE)
             if not raw_response:
                 break
-            raw_responses_list.append(raw_response)
-            outputs_list.append([dict(output, identifier=incident_id) for output in raw_response])
+            raw_responses.extend(raw_response)
             limit -= MAX_PAGE_SIZE_VALUE
             page += 1
     except DemistoException as e:
@@ -681,8 +676,7 @@ def fraud_watch_incident_contact_emails_list_command(client: Client, args: Dict)
                 f' {unknown_incident_msg}')
         raise e
 
-    raw_responses = [response for responses in raw_responses_list for response in responses]
-    outputs = [output for outputs in outputs_list for output in outputs]
+    outputs = [dict(output, identifier=incident_id) for output in raw_responses]
 
     final_raw_responses = raw_responses[:count]
     final_outputs = outputs[:count]
@@ -813,20 +807,17 @@ def fraud_watch_brands_list_command(client: Client, args: Dict) -> CommandResult
     """
     page, limit = get_page_and_limit_args(args, minimum_page_size=MINIMUM_PAGE_SIZE_BRANDS,
                                           maximum_page_size=MAX_PAGE_SIZE_BRANDS)
-    raw_responses_list = []
-    outputs_list = []
+    raw_responses = []
+    outputs = []
     count = limit
     while limit > 0:
         raw_response = client.brands_list(page, MAX_PAGE_SIZE_BRANDS)
         if not raw_response:
             break
-        raw_responses_list.append(raw_response)
-        outputs_list.append(raw_response.get('brands'))
+        raw_responses.append(raw_response)
+        outputs.extend(raw_response.get('brands', []))
         limit -= MAX_PAGE_SIZE_BRANDS
         page += 1
-
-    raw_responses = [response for responses in raw_responses_list for response in responses]
-    outputs = [output for outputs in outputs_list for output in outputs]
 
     final_raw_responses = raw_responses[:count]
     final_outputs = outputs[:count]
@@ -836,7 +827,8 @@ def fraud_watch_brands_list_command(client: Client, args: Dict) -> CommandResult
         outputs=final_outputs,
         outputs_key_field='name',
         raw_response=final_raw_responses,
-        readable_output=tableToMarkdown("FraudWatch Brands", final_outputs, ['name', 'active', 'client'], removeNull=True)
+        readable_output=tableToMarkdown("FraudWatch Brands", final_outputs, ['name', 'active', 'client'],
+                                        removeNull=True)
     )
 
 
